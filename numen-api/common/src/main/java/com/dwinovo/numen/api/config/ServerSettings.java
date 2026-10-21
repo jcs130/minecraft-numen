@@ -16,6 +16,7 @@ import java.util.UUID;
  * <ul>
  *   <li>{@code dailyTokenLimit}:服主的 key 给每位玩家每天能用多少 token(0 = 不限,缺省)。玩家自己的 key 不受限。</li>
  *   <li>{@code maxCompanions}:每位玩家最多召唤几只同伴(0 = 不限,缺省)。召唤只要一个名字,这是唯一的上限。</li>
+ *   <li>{@code sharedKeyOwners}:允许使用服主共享Key的主人UUID;专用服缺省为空,单人世界沿用本机共享。</li>
  *   <li>{@code hardRules}:硬规则(别人的东西碰不得)开不开,缺省开。单机就是你自己,想关就关;</li>
  *   <li>{@code unknownAsOther}:说不清是谁的方块按别人的算。专用服务器缺省是:多人服上说不清的多半是别人装模组前盖的,
  *       让主人答应就等于让想搞破坏的主人一键拆别人的房子;单机与局域网缺省否,照旧问主人。</li>
@@ -32,6 +33,7 @@ public final class ServerSettings {
     private volatile boolean hardRules;
     private volatile boolean unknownAsOther;
     private volatile Set<UUID> residentCompanions = Set.of();
+    private volatile Set<UUID> sharedKeyOwners = Set.of();
 
     /** @param dedicated 是不是专用服务器:有的设置缺省值随它而不同 */
     public ServerSettings(Home server, boolean dedicated) {
@@ -47,6 +49,7 @@ public final class ServerSettings {
         hardRules = true;
         unknownAsOther = dedicated;
         residentCompanions = Set.of();
+        sharedKeyOwners = Set.of();
         try {
             JsonObject root = doc.read().orElse(null);
             if (root == null) {
@@ -72,6 +75,13 @@ public final class ServerSettings {
                 }
                 residentCompanions = Set.copyOf(residents);
             }
+            if (root.has("sharedKeyOwners")) {
+                Set<UUID> owners = new TreeSet<>();
+                for (var id : root.getAsJsonArray("sharedKeyOwners")) {
+                    owners.add(UUID.fromString(id.getAsString()));
+                }
+                sharedKeyOwners = Set.copyOf(owners);
+            }
         } catch (RuntimeException unreadable) {
             Constants.LOG.warn("[numen-server] {} 读不了,用缺省设置: {}", doc.file(), unreadable.toString());
         }
@@ -80,6 +90,11 @@ public final class ServerSettings {
     /** 服主的 key 每人每天的 token 上限;0 = 不限。 */
     public long dailyTokenLimit() {
         return dailyTokenLimit;
+    }
+
+    /** 专用服只向服主明确登记的主人提供共享额度;私人钥匙串不受此表影响。 */
+    public boolean canUseSharedKeys(UUID owner) {
+        return !dedicated || sharedKeyOwners.contains(owner);
     }
 
     /** 每位玩家最多召唤几只同伴;0 = 不限。 */
@@ -137,6 +152,9 @@ public final class ServerSettings {
         var residents = new com.google.gson.JsonArray();
         new TreeSet<>(residentCompanions).forEach(id -> residents.add(id.toString()));
         root.add("residentCompanions", residents);
+        var owners = new com.google.gson.JsonArray();
+        new TreeSet<>(sharedKeyOwners).forEach(id -> owners.add(id.toString()));
+        root.add("sharedKeyOwners", owners);
         return root;
     }
 }

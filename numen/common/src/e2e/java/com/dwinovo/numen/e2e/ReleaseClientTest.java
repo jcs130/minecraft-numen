@@ -14,6 +14,22 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /** 官方发布协议的真实 Paper 连接;二进制布局另用原发布 JAR 的 codec 核对。 */
 class ReleaseClientTest extends Scenario {
+    @Test void oldClientModelCommandsExplainWhereItsSettingsActuallyLive() throws Exception {
+        Bot owner = legacy("rel_settings");
+        summonPacket(owner, "RelSettings");
+        int mark = owner.mark(); owner.command("numen status");
+        owner.await(mark, m -> m.text().contains("玩家电脑资料"), WAIT, "release client classification");
+        owner.await(mark, m -> m.text().contains("RelSettings") && m.text().contains("模型=由外脑配置"), WAIT,
+                "server binding must not masquerade as the client's actual model");
+        mark = owner.mark(); owner.command("numen model set no_server_copy custom chat model https://example.test/v1");
+        owner.await(mark, m -> m.text().contains("旧版客户端管理模型"), WAIT, "no unused server profile");
+        mark = owner.mark(); owner.command("numen model list");
+        owner.await(mark, m -> m.text().contains(SPEC.modelProfile()), WAIT, "server catalog");
+        assertTrue(owner.since(mark).stream().noneMatch(m -> m.text().contains("no_server_copy")));
+        assertTrue(MODEL.asked().isEmpty());
+        owner.command("numen player despawn RelSettings");
+        until(() -> !online("RelSettings"), "dismiss test companion");
+    }
     static final String ROSTER = "numen_api:companion_list", RESULT = "numen_api:program_result";
     static final String[] CHANNELS = {ROSTER, RESULT, "numen_api:client_ui_action", "numen_api:numen_event",
             "numen_api:current_task", "numen_api:client_call", "numen_api:consent_request", "numen_api:numen_state",

@@ -204,6 +204,7 @@ final class Bot implements AutoCloseable {
 
     /** 敲一条指令(不带斜杠,和聊天栏里输入 {@code /…} 发出去的一样)。 */
     void command(String command) {
+        paceMessage();
         String verb = command.split(" ", 2)[0];
         if (SIGNED_COMMANDS.contains(verb)) {
             session.send(new ServerboundChatCommandSignedPacket(command, System.currentTimeMillis(), 0L, List.of(),
@@ -215,7 +216,20 @@ final class Bot implements AutoCloseable {
 
     /** 在聊天栏打一句话发出去。 */
     void say(String message) {
+        paceMessage();
         session.send(new ServerboundChatPacket(message, System.currentTimeMillis(), 0L, null, 0, new BitSet(20)));
+    }
+
+    private long lastMessage;
+
+    /** 保留原版反刷屏,夹具不把交互命令在同一刻全部倾倒到服务器。 */
+    private synchronized void paceMessage() {
+        long remaining = java.time.Duration.ofMillis(400).toNanos() - (System.nanoTime() - lastMessage);
+        if (remaining > 0) {
+            try { TimeUnit.NANOSECONDS.sleep(remaining); }
+            catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); throw new IllegalStateException("test interrupted", interrupted); }
+        }
+        lastMessage = System.nanoTime();
     }
 
     /** 点聊天里的按钮:原版客户端对 {@code run_command} 的点击,就是把那条命令当成自己敲的发出去。 */
@@ -242,6 +256,12 @@ final class Bot implements AutoCloseable {
     int mark() {
         synchronized (lock) {
             return messages.size();
+        }
+    }
+
+    List<Message> since(int mark) {
+        synchronized (lock) {
+            return List.copyOf(messages.subList(mark, messages.size()));
         }
     }
 

@@ -62,6 +62,7 @@ class LibrariesTest {
     private final Map<UUID, Keychain> ownerKeys = new HashMap<>();
     private LibraryHub hub;
     private Keychain serverKeys;
+    private final java.util.concurrent.atomic.AtomicBoolean sharedKeysAllowed = new java.util.concurrent.atomic.AtomicBoolean(true);
     private ModelCatalog catalog;
     private boolean multiplayer;
     /** 假的签名队:不联网,签出来的都是 value=v-手臂模型;签好一条(写进货架之后)闸门放行一次。 */
@@ -117,7 +118,7 @@ class LibrariesTest {
             @Override
             public ProviderLibrary providers(UUID owner) {
                 return new ProviderLibrary(hub.library(ProviderLibrary.KIND, owner),
-                        new Keys(ownerKeys(owner), serverKeys), catalog);
+                        new Keys(ownerKeys(owner), serverKeys, sharedKeysAllowed::get), catalog);
             }
 
             @Override
@@ -244,6 +245,20 @@ class LibrariesTest {
 
     private static JsonArray array(String json) {
         return JsonParser.parseString(json).getAsJsonArray();
+    }
+
+    @Test
+    void sharedKeyVisibilityMatchesTheActualSpendingPolicy(@TempDir Path dir) {
+        Libraries libraries = libraries(dir);
+        sharedKeysAllowed.set(false);
+        JsonObject key = array(libraries.view(PLAYER, false, Libraries.KEY)).get(0).getAsJsonObject();
+        assertFalse(key.get("serverSet").getAsBoolean());
+        JsonObject profile = array(libraries.view(PLAYER, false, Libraries.PROVIDER)).get(0).getAsJsonObject();
+        assertEquals("", profile.get("keySource").getAsString());
+        libraries.handle(PLAYER, false, Libraries.KEY, Libraries.PUT, body("service", "deepseek", "key", "personal-test-key"));
+        assertEquals("mine", array(libraries.view(PLAYER, false, Libraries.PROVIDER)).get(0).getAsJsonObject().get("keySource").getAsString());
+        assertFalse(libraries.view(OTHER, false, Libraries.KEY).contains("personal-test-key"));
+        assertTrue(array(libraries.view(ADMIN, true, Libraries.KEY)).get(0).getAsJsonObject().get("serverSet").getAsBoolean(), "管理员仍能管理共享钥匙串");
     }
 
     /** 一张表里 id 对得上、在这一组的那一行。 */

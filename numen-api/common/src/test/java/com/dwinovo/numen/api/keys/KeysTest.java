@@ -90,6 +90,24 @@ class KeysTest {
         assertNull(new Keychain(home("server")).get("deepseek"));
     }
 
+    @Test
+    void unapprovedOwnersNeverBorrowASharedKeyAndRevocationAffectsExistingResolvers() {
+        Keychain mine = new Keychain(home("players/a"));
+        Keychain server = new Keychain(home("server"));
+        server.put("custom", "shared-test-key");
+        var allowed = new java.util.concurrent.atomic.AtomicBoolean(false);
+        Keys keys = new Keys(mine, server, allowed::get);
+        assertNull(keys.find("custom"));
+        allowed.set(true);
+        assertEquals(new Keys.Found("shared-test-key", Keys.Source.SERVER), keys.find("custom"));
+        allowed.set(false);
+        assertNull(keys.find("custom"));
+        mine.put("custom", "personal-test-key");
+        assertEquals(new Keys.Found("personal-test-key", Keys.Source.OWNER), keys.find("custom"));
+        mine.put("custom", "");
+        assertNull(keys.find("custom"), "删除个人Key不能恢复服主付费通道");
+    }
+
     // ---- 服主的 key 的每人每天限额 ----
 
     private ServerKeyQuota quota(long limit, AtomicReference<LocalDate> today) throws IOException {

@@ -104,6 +104,9 @@ public final class NumenCommands {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        graft(dispatcher, com.dwinovo.numen.api.brain.OwnerCommands.helpNode());
+        graft(dispatcher, com.dwinovo.numen.api.brain.OwnerCommands.statusNode());
+        graft(dispatcher, com.dwinovo.numen.api.brain.OwnerCommands.modelNode());
         graft(dispatcher, Commands.literal("player")
                 .then(Commands.literal("summon")
                         .then(Commands.argument("name", StringArgumentType.word())
@@ -267,6 +270,10 @@ public final class NumenCommands {
                                     ClientUiActionPayload.Action action)
             throws CommandSyntaxException {
         ServerPlayer caller = ctx.getSource().getPlayerOrException();
+        if (action == ClientUiActionPayload.Action.OPEN_SETTINGS && !Presence.hasClient(caller.getUUID())
+                && !com.dwinovo.numen.api.brain.ReleaseClients.hasClient(caller.getUUID())) {
+            return com.dwinovo.numen.api.brain.OwnerCommands.help(ctx.getSource());
+        }
         if (needsClient(ctx, caller)) {
             return 0;
         }

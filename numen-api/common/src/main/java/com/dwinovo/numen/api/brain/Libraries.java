@@ -792,7 +792,7 @@ public final class Libraries {
                 row.addProperty("mine", mine);
             }
             String shared = sources.serverKeys().get(service);
-            row.addProperty("serverSet", shared != null);
+            row.addProperty("serverSet", shared != null && (admin || sources.providers(owner).keys().sharedAllowed()));
             if (admin && shared != null) {
                 row.addProperty("server", shared);
             }

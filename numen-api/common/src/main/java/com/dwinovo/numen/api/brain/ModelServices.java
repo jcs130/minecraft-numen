@@ -89,9 +89,9 @@ public final class ModelServices {
         return ownerKeys.computeIfAbsent(owner, id -> new Keychain(homes.owner(id)));
     }
 
-    /** 这位玩家用 key 的顺序:先他自己的,再服主的。 */
+    /** 先用本人钥匙串;只有服务器设置明确授权时才用共享额度。每次查找重读授权,撤销后立即生效。 */
     public Keys keys(UUID owner) {
-        return new Keys(ownerKeychain(owner), serverKeys);
+        return new Keys(ownerKeychain(owner), serverKeys, () -> settings.canUseSharedKeys(owner));
     }
 
     /** 这位玩家的模型档案库:服务器的内置加他的"我的"。 */

@@ -110,6 +110,22 @@ class NumenCommandsTest {
     }
 
     @Test
+    void optionalClientsHaveAReadOnlyEntryAndExplicitModelWrites() {
+        runs("numen help");
+        runs("numen status");
+        runs("numen model list");
+        runs("numen model list 2");
+        assertTrue(fails("numen model list 0"));
+        var args = runs("numen model set own custom chat example https://example.test/v1");
+        assertEquals("own", args.get("name").getResult());
+        assertEquals("https://example.test/v1", args.get("url").getResult());
+        assertTrue(fails("numen model set own custom chat example"));
+        for (String command : java.util.List.of("numen help", "numen status", "numen model list",
+                "numen model set own custom chat example https://example.test/v1"))
+            assertTrue(fails(command, her), "同伴身体不能替主人配置付费模型");
+    }
+
+    @Test
     void rulesListAddRemoveReset() {
         runs("numen permission rules list");
         assertEquals("break(placed & minecraft:cobblestone)",

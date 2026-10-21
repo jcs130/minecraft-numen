@@ -23,6 +23,7 @@ abstract class Scenario {
 
     private final List<Bot> bots = new ArrayList<>();
     private final List<Companion> companions = new ArrayList<>();
+    private final java.util.Set<Bot> configuredOwners = new java.util.HashSet<>();
 
     private record Companion(Bot owner, String name) {}
 
@@ -69,6 +70,12 @@ abstract class Scenario {
 
     /** 主人召唤她,绑上假模型的档案,等服务端回话召唤成了、绑定成了。 */
     void summon(Bot owner, String her) {
+        // 公共测试档案不代表共享付费许可;每个测试主人明确提供自己的假Key。
+        if (configuredOwners.add(owner)) {
+            int keyMark = owner.mark();
+            owner.command("numen key custom " + SPEC.modelKey());
+            owner.await(keyMark, m -> m.text().contains("custom"), WAIT, "本人的测试Key");
+        }
         int mark = owner.mark();
         // 先记下再等回话:等不到回话的场景收场时也要把她遣散,否则同名的她留在服务端,拖累后面的场景
         companions.add(new Companion(owner, her));

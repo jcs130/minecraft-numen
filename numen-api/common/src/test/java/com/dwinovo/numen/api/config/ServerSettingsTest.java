@@ -113,4 +113,30 @@ class ServerSettingsTest {
         settings.reload();
         assertTrue(settings.residents().isEmpty());
     }
+
+    @Test
+    void dedicatedSharedKeysAreOptInAndSurviveUnrelatedSettingsWrites(@TempDir Path dir) throws IOException {
+        UUID allowed = UUID.randomUUID(), stranger = UUID.randomUUID();
+        ServerSettings settings = new ServerSettings(home(dir), true);
+        assertFalse(settings.canUseSharedKeys(allowed));
+        assertTrue(new ServerSettings(home(dir.resolve("single")), false).canUseSharedKeys(allowed));
+        Files.writeString(dir.resolve(ServerSettings.FILE), "{\"sharedKeyOwners\":[\"" + allowed + "\"]}");
+        settings.reload();
+        assertTrue(settings.canUseSharedKeys(allowed));
+        assertFalse(settings.canUseSharedKeys(stranger));
+        settings.setResident(UUID.randomUUID(), true);
+        assertTrue(new ServerSettings(home(dir), true).canUseSharedKeys(allowed));
+        Files.writeString(dir.resolve(ServerSettings.FILE), "{}");
+        settings.reload();
+        assertFalse(settings.canUseSharedKeys(allowed));
+    }
+
+    @Test
+    void malformedSharedKeyOwnersNeverEnableAValidPrefix(@TempDir Path dir) throws IOException {
+        UUID owner = UUID.randomUUID();
+        Files.writeString(dir.resolve(ServerSettings.FILE), "{\"sharedKeyOwners\":[\"" + owner + "\",\"broken\"]}");
+        assertFalse(new ServerSettings(home(dir), true).canUseSharedKeys(owner));
+        Files.writeString(dir.resolve(ServerSettings.FILE), "broken json");
+        assertFalse(new ServerSettings(home(dir), true).canUseSharedKeys(owner));
+    }
 }

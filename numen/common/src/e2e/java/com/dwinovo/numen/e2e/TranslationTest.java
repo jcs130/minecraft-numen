@@ -19,8 +19,8 @@ class TranslationTest extends Scenario {
         int englishMark = english.mark();
 
         // 这条指令作用在 Numen 客户端上,没装的玩家得到一句说明——一条不依赖任何前置状态的 Numen 系统消息
-        chinese.command("numen settings");
-        english.command("numen settings");
+        chinese.command("numen debug");
+        english.command("numen debug");
 
         Bot.Message zh = chinese.await(chineseMark, m -> m.text().contains("要装了 Numen 客户端"), WAIT,
                 "中文的说明");
