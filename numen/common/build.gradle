@@ -76,6 +76,10 @@ neoForge.addModdingDependenciesTo(sourceSets.testFixtures)
  */
 sourceSets {
     e2e
+    clientE2e {
+        compileClasspath += sourceSets.e2e.output + sourceSets.e2e.compileClasspath
+        runtimeClasspath += sourceSets.e2e.output + sourceSets.e2e.runtimeClasspath
+    }
 }
 
 repositories {

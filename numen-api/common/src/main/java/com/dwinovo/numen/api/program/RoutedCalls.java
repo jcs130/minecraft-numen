@@ -10,14 +10,22 @@ final class RoutedCalls implements ProgramCalls {
 
     private final ProgramCalls server;
     private final ProgramCalls client;
+    private final java.util.function.Predicate<Invocation> clientOwned;
 
     RoutedCalls(ProgramCalls server, ProgramCalls client) {
+        this(server, client, invocation -> false);
+    }
+
+    RoutedCalls(ProgramCalls server, ProgramCalls client,
+                java.util.function.Predicate<Invocation> clientOwned) {
         this.server = server;
         this.client = client;
+        this.clientOwned = clientOwned;
     }
 
     @Override
     public void execute(String callId, Invocation invocation, Consumer<String> done, Runnable sent) {
-        (Dispatcher.runsOnServer(invocation) ? server : client).execute(callId, invocation, done, sent);
+        (clientOwned.test(invocation) || !Dispatcher.runsOnServer(invocation) ? client : server)
+                .execute(callId, invocation, done, sent);
     }
 }

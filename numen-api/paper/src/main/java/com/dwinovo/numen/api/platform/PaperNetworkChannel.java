@@ -36,6 +36,7 @@ public final class PaperNetworkChannel implements INetworkChannel {
 
     /** 下行包的 id → 编码器。 */
     private final Map<ResourceLocation, StreamCodec<? super RegistryFriendlyByteBuf, ?>> downlink = new HashMap<>();
+    private final Map<String, java.util.function.BiFunction<ServerPlayer, RegistryFriendlyByteBuf, Runnable>> uplink = new HashMap<>();
 
     @Override
     public <T extends CustomPacketPayload> void registerClientToServer(
@@ -44,11 +45,14 @@ public final class PaperNetworkChannel implements INetworkChannel {
             BiConsumer<T, ServerPlayer> handler,
             Execution execution) {
         JavaPlugin plugin = JavaPlugin.getProvidingPlugin(PaperNetworkChannel.class);
+        uplink.put(type.id().toString(), (player, in) -> {
+            T payload = PaperReleaseProtocol.read(codec, in);
+            return () -> handler.accept(payload, player);
+        });
         plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, type.id().toString(),
                 (channel, bukkitPlayer, bytes) -> {
                     ServerPlayer player = ((CraftPlayer) bukkitPlayer).getHandle();
-                    ByteBuf in = Unpooled.wrappedBuffer(bytes);
-                    handler.accept(codec.decode(new RegistryFriendlyByteBuf(in, player.server.registryAccess())), player);
+                    PaperReleaseProtocol.prepare(channel, bytes, player, uplink).run();
                 });
     }
 
@@ -78,9 +82,9 @@ public final class PaperNetworkChannel implements INetworkChannel {
                 (StreamCodec<? super RegistryFriendlyByteBuf, CustomPacketPayload>) registered;
         RegistryFriendlyByteBuf out = new RegistryFriendlyByteBuf(Unpooled.buffer(), player.server.registryAccess());
         try {
-            codec.encode(out, payload);
+            if (!PaperReleaseProtocol.encode(player, payload, out)) codec.encode(out, payload);
             player.connection.send(new ClientboundCustomPayloadPacket(
-                    new DiscardedPayload(id, Unpooled.wrappedBuffer(ByteBufUtil.getBytes(out)))));
+                    new DiscardedPayload(PaperReleaseProtocol.target(player, id), Unpooled.wrappedBuffer(ByteBufUtil.getBytes(out)))));
         } finally {
             out.release();
         }
@@ -91,6 +95,7 @@ public final class PaperNetworkChannel implements INetworkChannel {
         var channels = player.getBukkitEntity().getListeningPluginChannels();
         // 0.1.4 发布客户端登记了同名名册频道,但每行没有 removedFor,收到新版会因多余字节断线。
         // 名册负责触发 Hello,不能等 Presence 才发;先认它是否支持服务端大脑的握手频道。
-        return channels.contains(HelloAckPayload.TYPE.id().toString()) && channels.contains(type.id().toString());
+        return PaperReleaseProtocol.accepts(player, type)
+                || channels.contains(HelloAckPayload.TYPE.id().toString()) && channels.contains(type.id().toString());
     }
 }

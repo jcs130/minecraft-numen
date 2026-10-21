@@ -18,6 +18,7 @@ public final class NumenApiPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         NumenNetwork.register();
+        NumenNetwork.registerReleaseProtocol();
         PaperPermissions.declare();
 
         getServer().getPluginManager().registerEvents(new PaperEvents(), this);

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "numen_release_fixture",
+  "version": "1.0",
+  "name": "Official Numen client test fixture",
+  "environment": "client",
+  "entrypoints": { "client": ["com.dwinovo.numen.e2e.client.ReleaseClientFixture"] },
+  "depends": { "fabricloader": ">=0.18.1", "fabric-api": "*", "minecraft": "1.21.1", "numen": "*" }
+}

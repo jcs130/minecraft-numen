@@ -110,6 +110,7 @@ public final class CompanionTickDispatcher {
         com.dwinovo.numen.api.mcp.server.McpMode.instance().tick();   // 外脑失联、回归的播报
         com.dwinovo.numen.api.brain.Visits.tick(server);   // 渠道来访:做完这一轮的结束
         com.dwinovo.numen.api.brain.CompanionLoops.tick();   // 服务端大脑:停牌变化、攒够时长的熟度、推给主人的事件
+        com.dwinovo.numen.api.brain.ReleaseClients.tick(server);
         Companions.tickRespawns(server);   // timed death recoveries
         TimerRegistry.tick(server);        // 她自己定的表,到点发事件
         com.dwinovo.numen.api.permission.PermissionFeed.tick(server);   // 规则表变了,合并推给主人的面板

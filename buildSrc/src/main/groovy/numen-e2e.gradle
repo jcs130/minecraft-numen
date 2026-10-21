@@ -78,6 +78,7 @@ tasks.register('e2eTest', Test) {
     testClassesDirs = scenes.output.classesDirs
     classpath = scenes.runtimeClasspath
     useJUnitPlatform()
+    systemProperty 'e2e.platform', project.name
     dependsOn 'e2eServerStart'
     finalizedBy 'e2eServerStop'
     // 一次起服只跑一遍,不借 Gradle 的最新检查跳过
@@ -98,5 +99,35 @@ tasks.register('e2eTest', Test) {
         systemProperty 'e2e.model.port', spec.modelPort
         systemProperty 'e2e.model.key', spec.modelKey
         systemProperty 'e2e.model.profile', spec.modelProfile
+    }
+}
+
+// 单独选择的图形客户端验收:运行未改动的官方发布 JAR,不要求普通 e2e/CI 安装图形环境。
+if (project.name == 'paper') {
+    tasks.register('officialClientTest', Test) {
+        group = 'verification'
+        def nativeScenes = project(':numen:common').sourceSets.clientE2e
+        testClassesDirs = nativeScenes.output.classesDirs
+        classpath = nativeScenes.runtimeClasspath
+        useJUnitPlatform()
+        dependsOn 'e2eServerStart'
+        finalizedBy 'e2eServerStop'
+        outputs.upToDateWhen { false }
+        maxParallelForks = 1
+        testLogging { events 'passed', 'failed'; exceptionFormat = 'full'; showStandardStreams = true }
+        def spec = e2e
+        doFirst {
+            ['host', 'port'].each { systemProperty "e2e.${it}", spec[it] }
+            systemProperty 'e2e.rcon.port', spec.rconPort
+            systemProperty 'e2e.rcon.password', spec.rconPassword
+            systemProperty 'e2e.model.port', spec.modelPort
+            systemProperty 'e2e.model.key', spec.modelKey
+            systemProperty 'e2e.model.profile', spec.modelProfile
+            systemProperty 'e2e.client.launcher', rootProject.file('numen/common/src/e2e/client/run-release-client.py')
+            systemProperty 'e2e.client.output', layout.buildDirectory.dir('official-client').get().asFile
+            ['python', 'java', 'official', 'fixture', 'cache'].each {
+                systemProperty "e2e.client.${it}", providers.gradleProperty("releaseClient.${it}").get()
+            }
+        }
     }
 }

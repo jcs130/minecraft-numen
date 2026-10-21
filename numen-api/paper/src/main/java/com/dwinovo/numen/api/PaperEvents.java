@@ -33,6 +33,7 @@ final class PaperEvents implements Listener {
 
     @EventHandler
     void onJoin(PlayerJoinEvent event) {
+        com.dwinovo.numen.api.platform.PaperReleaseProtocol.registered(handle(event.getPlayer()));
         PlayerSessions.joined(handle(event.getPlayer()));
     }
 
@@ -42,6 +43,7 @@ final class PaperEvents implements Listener {
      */
     @EventHandler
     void onChannelRegistered(PlayerRegisterChannelEvent event) {
+        com.dwinovo.numen.api.platform.PaperReleaseProtocol.registered(handle(event.getPlayer()));
         PlayerSessions.channelReady(handle(event.getPlayer()));
     }
 
@@ -59,6 +61,7 @@ final class PaperEvents implements Listener {
             }
             return;
         }
+        com.dwinovo.numen.api.platform.PaperReleaseProtocol.disconnected(player.getUUID());
         PlayerSessions.left(player);
     }
 

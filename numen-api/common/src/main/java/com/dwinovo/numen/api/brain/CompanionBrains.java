@@ -103,7 +103,8 @@ public final class CompanionBrains {
                 new LlmMind(ModelServices.of(server).providers(owner), owner, ModelServices.of(server).quota()),
                 Replies.link(server, owner),
                 () -> OwnerPresence.mayRun(server, owner, companion),
-                () -> com.dwinovo.numen.api.mcp.server.McpMode.instance().driving(owner, companion));
+                () -> com.dwinovo.numen.api.mcp.server.McpMode.instance().driving(owner, companion)
+                        || ReleaseClients.driving(owner, companion));
         return loop;
     }
 

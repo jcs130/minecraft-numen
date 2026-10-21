@@ -276,7 +276,7 @@ public final class NumenCommands {
 
     /** 这条指令作用在调用者自己的客户端上:他没装(原版客户端)就说一声,不是悄悄什么都没发生。 */
     private static boolean needsClient(CommandContext<CommandSourceStack> ctx, ServerPlayer caller) {
-        if (Presence.hasClient(caller.getUUID())) {
+        if (Presence.hasClient(caller.getUUID()) || com.dwinovo.numen.api.brain.ReleaseClients.hasClient(caller.getUUID())) {
             return false;
         }
         ctx.getSource().sendFailure(Component.translatable(Keys.COMMAND_NEEDS_CLIENT));

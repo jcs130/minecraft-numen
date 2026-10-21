@@ -212,6 +212,19 @@ public final class NumenNetwork {
         Services.network().registerClientToServer(type, codec, handler, execution);
     }
 
+    public static void registerReleaseProtocol() {
+        // 官方发布客户端在本机跑循环,经这组入口驾驶同一具受权限约束的身体。
+        toServer(ReleasePackets.Run.TYPE, ReleasePackets.Run.CODEC, com.dwinovo.numen.api.brain.ReleaseClients::run);
+        toServer(ReleasePackets.Stop.TYPE, ReleasePackets.Stop.CODEC, com.dwinovo.numen.api.brain.ReleaseClients::stopped);
+        toServer(ReleasePackets.Cancel.TYPE, ReleasePackets.Cancel.CODEC, com.dwinovo.numen.api.brain.ReleaseClients::cancel);
+        toServer(ReleasePackets.Skin.TYPE, ReleasePackets.Skin.CODEC, com.dwinovo.numen.api.brain.ReleaseClients::skin);
+        toClient(ReleasePackets.Result.TYPE, ReleasePackets.Result.CODEC, p -> {});
+        toClient(ReleasePackets.Task.TYPE, ReleasePackets.Task.CODEC, p -> {});
+        toClient(ReleasePackets.Events.TYPE, ReleasePackets.Events.CODEC, p -> {});
+        toClient(ReleasePackets.Death.TYPE, ReleasePackets.Death.CODEC, p -> {});
+        toClient(ReleasePackets.Respawn.TYPE, ReleasePackets.Respawn.CODEC, p -> {});
+    }
+
     public static void register() {
         // 两个方向上一条超过单包上限的消息的片(见 Fragments):对端收齐拼回,交给原来的处理器。
         toServer(FragmentPayload.TO_SERVER, FragmentPayload.TO_SERVER_CODEC, NumenNetwork::fragmentFromClient,

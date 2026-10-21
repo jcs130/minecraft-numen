@@ -104,6 +104,20 @@ public final class ServerPrograms {
      */
     public static void run(NumenPlayer her, UUID companion, UUID owner, Request request, ClientTransport transport,
                            CallObserver observer, Consumer<Program.Outcome> done) {
+        run(her, companion, owner, request, request.modules(), false, transport, observer, done);
+    }
+
+    /** 官方发布客户端持有自己的模块和帮助库;身体调用仍经同一沙箱、并发门禁与主线程车道。 */
+    public static void runClientProgram(NumenPlayer her, UUID companion, UUID owner, String programId, String code,
+                                        com.dwinovo.numen.script.ScriptCatalog.ModuleSource modules,
+                                        ClientTransport transport, Consumer<Program.Outcome> done) {
+        run(her, companion, owner, new Request(programId, code, null, true), modules, true,
+                transport, CallObserver.NONE, done);
+    }
+
+    private static void run(NumenPlayer her, UUID companion, UUID owner, Request request,
+                            com.dwinovo.numen.script.ScriptCatalog.ModuleSource modules, boolean clientOwned,
+                            ClientTransport transport, CallObserver observer, Consumer<Program.Outcome> done) {
         MainQueue.Lane lane = QUEUE.lane();
         ClientCalls client = new ClientCalls(her, companion, lane, transport, () -> ticks);
         Running running = new Running(companion, owner, request.programId(), lane, client);
@@ -122,11 +136,12 @@ public final class ServerPrograms {
         ProgramCalls calls = new ObservedCalls(new RoutedCalls(
                 new ServerCalls(her, companion, running.lane,
                         job -> running.claimed = request.reportsToModel() ? job : null),
-                client), observer);
+                client, invocation -> clientOwned && (invocation.function().startsWith("numen.module.")
+                        || invocation.function().equals("numen.api.help"))), observer);
         Constants.LOG.info("[numen-program] {} runs {} on the server ({} chars)", companion, request.programId(),
                 request.code().length());
         running.program = new Program(request.programId(), request.code(),
-                new ProgramPort(her, request.modules(), calls), new SerialExecutor(THREADS), outcome -> {
+                new ProgramPort(her, modules, calls), new SerialExecutor(THREADS), outcome -> {
                     // 程序以任何方式结束(跑完、出错、打断、切断、主人断线)都经这里:它等着的反向请求在这一处撤掉
                     client.close();
                     // 排回执与摘登记在同一把锁里做完:看登记的人(准入、idle、running)要么看见它还在跑、回执还没排,
@@ -134,7 +149,7 @@ public final class ServerPrograms {
                     synchronized (RUNNING) {
                         running.lane.post(() -> {
                             observer.ended(outcome);
-                            tally(request.modules(), outcome);
+                            if (request.modules() != null) tally(request.modules(), outcome);
                             done.accept(outcome);
                         });
                         running.lane.close();

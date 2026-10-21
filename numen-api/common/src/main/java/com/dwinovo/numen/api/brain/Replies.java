@@ -139,7 +139,7 @@ public final class Replies {
      * 客户端画答复框;没装的,发给他一条带可点按钮的聊天消息,撤回时说一声为什么。他答复的唯一入口不变:{@code ConsentDesk.reply}。
      */
     public static void consent(ServerPlayer owner, String companion, ConsentRequestPayload request) {
-        if (Presence.hasClient(owner.getUUID())) {
+        if (Presence.hasClient(owner.getUUID()) || ReleaseClients.hasClient(owner.getUUID())) {
             NumenNetwork.sendToPlayer(owner, request);
         } else if (!request.withdrawn()) {
             owner.sendSystemMessage(ConsentChat.ask(companion, request));

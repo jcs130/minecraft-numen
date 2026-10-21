@@ -132,6 +132,32 @@ class ServerProgramsTest {
     // ---- 两端的函数交替 ----
 
     @Test
+    void releaseClientModulesRunThroughTheNativeServerExecutorWithoutWritingTheServerLibrary() {
+        ReleaseModules snapshot = new ReleaseModules();
+        String hash = com.dwinovo.numen.api.library.Fingerprint.of(PIT);
+        snapshot.accept(new com.dwinovo.numen.api.network.ReleasePackets.Modules(
+                java.util.Map.of("my.pit", hash), java.util.Map.of(hash, PIT)));
+        Started run = new Started();
+        ServerPrograms.runClientProgram(null, UUID.randomUUID(), UUID.randomUUID(), run.id,
+                "return gt.gt_mix.up(my.pit.seven())", snapshot, new Held(), run.result::set);
+        pumpUntil(() -> run.outcome() != null);
+        assertEquals(8, run.returned().getAsInt(), run.message());
+    }
+
+    @Test
+    void releaseClientHelpAndModuleDataAreAskedFromTheOwningClient() {
+        Held transport = new Held();
+        Started run = new Started();
+        ServerPrograms.runClientProgram(null, UUID.randomUUID(), UUID.randomUUID(), run.id,
+                "return numen.api.help('my.client_module')", new ReleaseModules(), transport, run.result::set);
+        pumpUntil(() -> !transport.held.isEmpty());
+        assertEquals("numen.api.help", transport.held.getFirst().function());
+        transport.answer(0, "client-only help");
+        pumpUntil(() -> run.outcome() != null);
+        assertEquals("client-only help", run.returned().getAsString(), run.message());
+    }
+
+    @Test
     void serverAndClientFunctionsCalledInTurnInOneProgramAreAllAnswered() {
         ApiTester.Run run = ApiTester.run(null, UUID.randomUUID(), """
                 local a = gt.gt_mix.up(1)

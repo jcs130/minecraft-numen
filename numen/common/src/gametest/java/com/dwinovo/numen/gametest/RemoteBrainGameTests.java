@@ -39,6 +39,64 @@ import static com.dwinovo.numen.gametest.GameTestKit.succeedWhen;
  */
 public class RemoteBrainGameTests {
 
+    /** 断线必须交回中断回执并释放外接槽；重连继续用原身体，不能永远报 busy。 */
+    @GameTest(template = "floor16", timeoutTicks = 400, batch = "numen_remote_8")
+    public static void a_cancelled_external_call_returns_a_receipt_and_reconnects(GameTestHelper helper)
+            throws Exception {
+        Rig her = new Rig(helper, "gametest_remote_cancel", null);
+        her.companion.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.BAMBOO, 20));
+        her.brain.connect();
+        var args = new com.google.gson.JsonObject();
+        args.addProperty("companion", her.companion.getUUID().toString());
+        args.addProperty("code", "numen.inv.drop(\"minecraft:bamboo\", {count=20})");
+        var first = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            try {
+                return her.brain.callResult("lua", args);
+            } catch (Exception e) {
+                throw new java.util.concurrent.CompletionException(e);
+            }
+        });
+        var second = new java.util.concurrent.atomic.AtomicReference<java.util.concurrent.CompletableFuture<com.google.gson.JsonObject>>();
+        helper.startSequence().thenWaitUntil(() -> {
+            helper.assertTrue(com.dwinovo.numen.api.permission.ConsentDesk.of(her.companion).pending() != null,
+                    "the real drop was not awaiting permission");
+        }).thenExecute(() -> {
+            try {
+                her.brain.disconnect();
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        }).thenWaitUntil(() -> {
+            helper.assertTrue(first.isDone(), "the cancelled external HTTP caller is still waiting");
+            var receipt = first.join();
+            helper.assertTrue(receipt.get("isError").getAsBoolean(), "cancellation reported success: " + receipt);
+            helper.assertTrue(receipt.toString().contains("interrupted"), "missing interruption reason: " + receipt);
+        }).thenExecute(() -> {
+            try {
+                her.brain.connect();
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+            var query = new com.google.gson.JsonObject();
+            query.addProperty("companion", her.companion.getUUID().toString());
+            query.addProperty("code", "print(\"RECONNECTED_ORIGINAL_BODY\")");
+            second.set(java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                try {
+                    return her.brain.callResult("lua", query);
+                } catch (Exception e) {
+                    throw new java.util.concurrent.CompletionException(e);
+                }
+            }));
+        }).thenWaitUntil(() -> {
+            helper.assertTrue(second.get().isDone(), "the reconnected query is still waiting");
+            var receipt = second.get().join();
+            helper.assertTrue(!receipt.get("isError").getAsBoolean() && receipt.toString().contains("RECONNECTED_ORIGINAL_BODY"),
+                    "the new external call inherited the old busy slot: " + receipt);
+            helper.assertTrue(com.dwinovo.numen.PlayerInv.count(her.companion.getInventory(), net.minecraft.world.item.Items.BAMBOO) == 20,
+                    "the refused/cancelled drop changed the inventory");
+        }).thenExecute(her::close).thenSucceed();
+    }
+
     /** 一只带产品线路大脑的同伴,和一个扮外部大脑的客户端。 */
     private static final class Rig {
         final MinecraftServer server;

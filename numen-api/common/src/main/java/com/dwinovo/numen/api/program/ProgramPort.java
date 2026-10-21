@@ -21,11 +21,15 @@ import java.util.function.Consumer;
 final class ProgramPort implements Program.Port {
 
     private final NumenPlayer her;
-    private final Modules modules;
+    private final ScriptCatalog.ModuleSource modules;
     private final ProgramCalls calls;
 
     /** @param her 她的身体;没有世界的单测是 null */
     ProgramPort(NumenPlayer her, Modules modules, ProgramCalls calls) {
+        this(her, (ScriptCatalog.ModuleSource) modules, calls);
+    }
+
+    ProgramPort(NumenPlayer her, ScriptCatalog.ModuleSource modules, ProgramCalls calls) {
         this.her = her;
         this.modules = modules;
         this.calls = calls;

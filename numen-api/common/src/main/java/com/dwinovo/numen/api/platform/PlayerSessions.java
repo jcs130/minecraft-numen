@@ -56,6 +56,7 @@ public final class PlayerSessions {
     /** 主人断线:他名下在服务端跑着的程序收掉,等他答复的反向请求失败,他的模块缓存清掉。 */
     public static void left(ServerPlayer player) {
         if (!(player instanceof NumenPlayer)) {
+            com.dwinovo.numen.api.brain.ReleaseClients.left(player.getUUID());
             OwnerPresence.playerLeft(player.server, player.getUUID());
             ANNOUNCED.remove(player.getUUID());
         }

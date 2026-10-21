@@ -373,11 +373,15 @@ public final class CompanionLoop {
 
     /** 收一批进队列的输入。什么时候倒出去由队列的熟度和内核的停牌说了算。 */
     public void push(List<EventQueue.Entry> entries) {
+        if (ReleaseClients.deliver(companion, entries)) {
+            convo.addUser(String.join("\n", EventQueue.render(entries, System.currentTimeMillis())));
+            return;
+        }
         loop.push(entries);
     }
 
     private boolean deliver(EventQueue.Entry entry) {
-        loop.push(List.of(entry));
+        push(List.of(entry));
         return loop.status().phase() != Phase.MODEL;
     }
 
@@ -408,6 +412,7 @@ public final class CompanionLoop {
     }
 
     private void updateDriving() {
+        ReleaseClients.reconcile(companion);
         // 驾驶席翻成外接的那一下作废在飞的回合:接管之后内脑的回复不该再派工具、整理不该再换历史。
         // 交还不用做什么——停牌是现算的,内核下一次推进自己看得见。
         boolean driving = parts.driving().getAsBoolean();
@@ -473,6 +478,7 @@ public final class CompanionLoop {
     /** 身体死了:内核冻结,收件箱照收。 */
     public void onDied(String cause) {
         deathCause = cause;
+        ReleaseClients.life(companion, cause, false);
         loop.halt(HaltReason.DEATH, cause);
     }
 
@@ -482,6 +488,11 @@ public final class CompanionLoop {
                 : (deathCause != null ? deathCause : "未知原因");
         String cause = raw.replace('<', '(').replace('>', ')');
         deathCause = null;
+        if (ReleaseClients.isDriving(companion)) {
+            ReleaseClients.life(companion, cause, true);
+            loop.respawned();
+            return;
+        }
         Constants.LOG.info("[numen-entity#{}] respawned ({}) — loop thawed", companion, cause);
         // 死亡是急件——她关于自己处境的认知几乎每一条都作废了:物品掉在死亡地点、位置从矿洞变成了主人身边、
         // 手上的任务没了、血量装备全变了。这不分"任务中死"还是"空闲死",所以这里没有任何判据。
