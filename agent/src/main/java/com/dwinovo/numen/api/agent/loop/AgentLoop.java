@@ -582,6 +582,15 @@ public final class AgentLoop {
         Run cut = run;
         // 先收工具口、再作废 run:在跑的脚本这时交出它停在哪一行的回执,还记在这次 run 名下进历史
         List<String> abandoned = tools.cancel(reason.stopsBody());
+        // 取消时,工具口可能先于异步程序回执被放弃。
+        // 结清外接调用并释放槽位,不能让重连永远继承 busy。
+        Consumer<String> external = aside;
+        aside = null;
+        if (external != null) {
+            external.accept(com.dwinovo.numen.api.agent.llm.ToolOutcome.failure(
+                    "External call interrupted (" + reason.words(detail) + "). Previous actions may already have happened; "
+                            + "read current body/task state before deciding, do not replay the call."));
+        }
         if (cut != null) {
             run = null;
             cut.cancel.cancel();

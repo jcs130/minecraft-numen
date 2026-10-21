@@ -185,7 +185,18 @@ public final class CompanionToolPort implements ToolPort, SerialCalls.Port {
 
     /** 程序交回的结局:回执、每次调用的结局、是不是被叫停的。 */
     private static SerialCalls.Settled settled(Program.Outcome outcome) {
-        return new SerialCalls.Settled(outcome.receipt(), outcome.ending(), outcome.calls(), outcome.stoppedFor());
+        String receipt = outcome.receipt();
+        // Trusted command adapters opt into the original return value. Keep the
+        // normal Lua/model display bounded, but do not cut JSON in mid-string.
+        if (outcome.returned() instanceof java.util.Map<?, ?> returned
+                && returned.size() == 1 && returned.get("numen_command_receipt") instanceof java.util.Map<?, ?> command) {
+            var data = new com.google.gson.Gson().toJsonTree(command);
+            var envelope = com.google.gson.JsonParser.parseString(receipt).getAsJsonObject();
+            if (data.toString().length() <= 262144) envelope.add("commandReceipt", data);
+            else envelope.addProperty("commandReceiptError", "too_large");
+            receipt = envelope.toString();
+        }
+        return new SerialCalls.Settled(receipt, outcome.ending(), outcome.calls(), outcome.stoppedFor());
     }
 
     /** 一个调用的回报口:记一笔,交给 {@code done};在飞时它也是 {@link #failInFlight} 用的那一个。 */

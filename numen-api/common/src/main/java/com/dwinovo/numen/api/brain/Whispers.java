@@ -2,6 +2,7 @@ package com.dwinovo.numen.api.brain;
 
 import com.dwinovo.numen.api.agent.inbox.EventTypes;
 import com.dwinovo.numen.api.entity.NumenPlayer;
+import net.minecraft.network.chat.Component;
 
 import java.util.UUID;
 
@@ -20,6 +21,18 @@ import java.util.UUID;
 public final class Whispers {
 
     private Whispers() {}
+
+    /** 原版未签名私聊:包里只有显示名。只接唯一匹配的在线账号,不把称号或正文当用户名。 */
+    public static void heard(NumenPlayer companion, Component senderName, Component text) {
+        String name = senderName.getString();
+        var senders = companion.server.getPlayerList().getPlayers().stream()
+                .filter(sender -> sender.getGameProfile().getName().equals(name)
+                        || sender.getDisplayName().getString().equals(name)).toList();
+        if (senders.size() == 1) {
+            var sender = senders.getFirst();
+            heard(companion, sender.getUUID(), senderName.getString(), text.getString());
+        }
+    }
 
     /**
      * @param companion  收到私聊的她

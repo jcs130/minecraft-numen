@@ -6,6 +6,7 @@ import net.minecraft.network.chat.ChatType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientboundPlayerChatPacket;
+import net.minecraft.network.protocol.game.ClientboundDisguisedChatPacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
@@ -120,6 +121,10 @@ public final class FakeClient {
             Component text = chat.unsignedContent();
             Whispers.heard(player, chat.sender(), chat.chatType().name().getString(),
                     text != null ? text.getString() : chat.body().content());
+        } else if (arrived && packet instanceof ClientboundDisguisedChatPacket chat
+                && chat.chatType().chatType().is(ChatType.MSG_COMMAND_INCOMING)) {
+            // 未签名的原版 /msg 不带 sender UUID;必须和在线名册核对,不从正文猜谁是主人。
+            Whispers.heard(player, chat.chatType().name(), chat.message());
         }
     }
 

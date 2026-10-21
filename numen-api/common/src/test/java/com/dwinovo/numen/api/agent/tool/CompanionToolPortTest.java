@@ -118,6 +118,18 @@ class CompanionToolPortTest {
     }
 
     @Test
+    void commandAdapterKeepsOriginalLongDataWithoutExpandingTheLuaDisplay() {
+        port.run(List.of(program("command-data")), sink);
+        String line = "MC_SKILL {\"description\":\"" + "技".repeat(12000) + "\"}";
+        var returned = Map.of("numen_command_receipt", Map.of("command", "/mycli skills mine", "output", List.of(line), "result", 1));
+        host.deliver("command-data", new Program.Outcome(ToolOutcome.success("short display"),
+                new ScriptCall.Ending(ScriptCall.Status.OK, null), List.of(), List.of(), null, returned, null));
+        var envelope = com.google.gson.JsonParser.parseString(finished.getFirst().substring("command-data ".length())).getAsJsonObject();
+        assertEquals("short display", envelope.get("message").getAsString());
+        assertEquals(line, envelope.getAsJsonObject("commandReceipt").getAsJsonArray("output").get(0).getAsString());
+    }
+
+    @Test
     void aProgramIsHandedOverWholeAndItsReceiptIsTheCallsResult() {
         port.run(List.of(program("c1")), sink);
         assertEquals(List.of("run c1 numen.work.dig({x = 1, y = 2, z = 3})"), host.did);

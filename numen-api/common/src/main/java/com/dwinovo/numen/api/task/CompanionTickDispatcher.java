@@ -124,14 +124,15 @@ public final class CompanionTickDispatcher {
                 // system only calls while the companion's chunk is already entity-ticking. Doing it here
                 // breaks the chicken-and-egg: a companion whose chunk fell out of ticking range still gets
                 // its pad refreshed, which pulls its chunk back into range so it resumes ticking. Gated on
-                // the owner being online — an owner-less companion (owner logged off on a server) shouldn't
-                // hold chunks loaded; its pad lapses and it idles until the owner returns. In single-player
+                // the owner being online or this particular body being registered as a server resident.
+                // Other owner-less companions release their pad until the owner returns. In single-player
                 // the owner is always online while the world runs, so this never gates there. See
                 // CompanionChunkLoader.
                 UUID owner = ap.getOwnerUuid();
                 net.minecraft.server.level.ServerPlayer ownerPlayer =
                         owner == null ? null : server.getPlayerList().getPlayer(owner);
-                if (ownerPlayer != null) {
+                if (ownerPlayer != null || com.dwinovo.numen.api.brain.ModelServices.of(server)
+                        .settings().resident(ap.getUUID())) {
                     CompanionChunkLoader.refresh(ap);
                 }
                 // 背包变了就推给主人一份。变化由原版的 ContainerListener 报,这里每 tick

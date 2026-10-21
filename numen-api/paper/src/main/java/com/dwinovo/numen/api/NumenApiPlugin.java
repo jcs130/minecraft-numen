@@ -25,6 +25,7 @@ public final class NumenApiPlugin extends JavaPlugin {
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> PaperCommands.register(event.registrar()));
 
         CommonClass.init();
+        ServerLifecycle.onStarted(server -> PaperAppearance.start(this));
 
         // 翻译源在服务器起好之后才登记:语言表按语言缓存,要等所有带 Numen 内容的插件都启用了才读,免得缓存里缺它们的键
         NumenTranslator translator = new NumenTranslator();
@@ -37,6 +38,11 @@ public final class NumenApiPlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         ServerLifecycle.fireStopped();
+        // Paper 在插件停用并关闭类加载器之后才保存世界。SavedData 的编码器属于插件,
+        // 必须趁它仍可加载类时同步写完(含权限命中账的首次序列化),不能把脏数据留给后面的存档。
+        for (var level : net.minecraft.server.MinecraftServer.getServer().getAllLevels()) {
+            level.getDataStorage().save(false);
+        }
         PluginJars.closeAll();
     }
 }

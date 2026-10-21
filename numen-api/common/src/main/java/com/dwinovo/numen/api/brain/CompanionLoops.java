@@ -190,9 +190,9 @@ public final class CompanionLoops {
     }
 
     /** 这位主人不在了({@link OwnerPresence}):他名下各大脑作废在飞的回应、放弃未决调用,待命。 */
-    static void ownerGone(UUID owner) {
+    static void ownerGone(UUID owner, java.util.function.Predicate<UUID> retained) {
         for (Entry entry : LOOPS.values()) {
-            if (entry.owner.equals(owner)) {
+            if (entry.owner.equals(owner) && !retained.test(entry.loop.companion())) {
                 entry.loop.ownerLeft();
             }
         }

@@ -274,6 +274,29 @@ class ServerProgramsTest {
     // ---- 停止与打断 ----
 
     @Test
+    void ownerLogoutRetainsOnlyTheSelectedResidentsProgram() {
+        UUID owner = UUID.randomUUID(), resident = UUID.randomUUID(), ordinary = UUID.randomUUID();
+        Held residentTransport = new Held(), ordinaryTransport = new Held();
+        Started first = start(resident, owner, "return gt.gt_mix.twice(4)", residentTransport);
+        Started second = start(ordinary, owner, "return gt.gt_mix.twice(7)", ordinaryTransport);
+        pumpUntil(() -> !residentTransport.held.isEmpty() && !ordinaryTransport.held.isEmpty());
+        try {
+            ServerPrograms.ownerLeft(owner, resident::equals);
+            pumpUntil(() -> second.outcome() != null);
+            assertTrue(ServerPrograms.running(resident), "同一主人断线只保留登记的那一只");
+            assertNull(first.outcome());
+            assertEquals(com.dwinovo.numen.script.ScriptCall.Status.STOPPED, second.outcome().ending().status());
+            residentTransport.answer(0, 8);
+            pumpUntil(() -> first.outcome() != null);
+            assertEquals(com.dwinovo.numen.script.ScriptCall.Status.OK, first.outcome().ending().status());
+            assertEquals(8, first.returned().getAsInt());
+        } finally {
+            ServerPrograms.ownerLeft(owner);
+            pumpUntil(() -> !ServerPrograms.running(resident) && !ServerPrograms.running(ordinary));
+        }
+    }
+
+    @Test
     void anInterruptStopsTheProgramWhenTheCallInFlightIsAnswered() {
         UUID companion = UUID.randomUUID();
         Held held = new Held();

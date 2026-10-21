@@ -23,6 +23,7 @@ public class CommonClass {
         registerApi();
         // 管理员查服主的 key 今天每个人用了多少
         com.dwinovo.numen.api.entity.NumenCommands.plug(com.dwinovo.numen.api.brain.UsageCommand.node());
+        com.dwinovo.numen.api.entity.NumenCommands.plug(com.dwinovo.numen.api.brain.ResidentCommand.node());
         wireTaskMachine();
         com.dwinovo.numen.api.brain.ServerBrains.register();
     }

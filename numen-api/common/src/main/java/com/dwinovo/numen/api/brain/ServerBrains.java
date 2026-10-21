@@ -61,6 +61,9 @@ public final class ServerBrains {
         for (UUID companion : registry.all()) {
             try {
                 CompanionBrains.ensure(server, companion);
+                if (ModelServices.of(server).settings().resident(companion)) {
+                    com.dwinovo.numen.api.entity.Companions.scheduleResidentRestore(companion);
+                }
             } catch (RuntimeException ex) {
                 Constants.LOG.error("[numen] 同伴 {} 的大脑没能起来,跳过", companion, ex);
             }

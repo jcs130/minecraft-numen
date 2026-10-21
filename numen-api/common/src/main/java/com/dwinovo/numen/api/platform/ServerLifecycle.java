@@ -43,6 +43,11 @@ public final class ServerLifecycle {
 
     private ServerLifecycle() {}
 
+    /** 是否仍处于这个世界的运行期;停止通知开始前就变成否,收尾事件不能再启动大脑。 */
+    public static boolean isRunning(MinecraftServer server) {
+        return server != null && running == server;
+    }
+
     /**
      * 报到:{@code drop} 会在每次服务器停止时被调用,把这份世界作用域的状态清空。
      *

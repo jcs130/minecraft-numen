@@ -5,6 +5,10 @@ import com.dwinovo.numen.api.home.Home;
 import com.dwinovo.numen.api.store.JsonDoc;
 import com.google.gson.JsonObject;
 
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.UUID;
+
 /**
  * 服主管的服务器设置,{@code config/numen/server/server.json}。管理员拿编辑器改,{@link #reload}(随 {@code /reload})读到。
  * 读不通就当缺省并记一笔,不阻断服务器起来。
@@ -27,6 +31,7 @@ public final class ServerSettings {
     private volatile int maxCompanions;
     private volatile boolean hardRules;
     private volatile boolean unknownAsOther;
+    private volatile Set<UUID> residentCompanions = Set.of();
 
     /** @param dedicated 是不是专用服务器:有的设置缺省值随它而不同 */
     public ServerSettings(Home server, boolean dedicated) {
@@ -41,6 +46,7 @@ public final class ServerSettings {
         maxCompanions = 0;
         hardRules = true;
         unknownAsOther = dedicated;
+        residentCompanions = Set.of();
         try {
             JsonObject root = doc.read().orElse(null);
             if (root == null) {
@@ -59,6 +65,13 @@ public final class ServerSettings {
             if (root.get("unknownAsOther") instanceof com.google.gson.JsonPrimitive other && other.isBoolean()) {
                 unknownAsOther = other.getAsBoolean();
             }
+            if (root.has("residentCompanions")) {
+                Set<UUID> residents = new TreeSet<>();
+                for (var id : root.getAsJsonArray("residentCompanions")) {
+                    residents.add(UUID.fromString(id.getAsString()));
+                }
+                residentCompanions = Set.copyOf(residents);
+            }
         } catch (RuntimeException unreadable) {
             Constants.LOG.warn("[numen-server] {} 读不了,用缺省设置: {}", doc.file(), unreadable.toString());
         }
@@ -72,6 +85,24 @@ public final class ServerSettings {
     /** 每位玩家最多召唤几只同伴;0 = 不限。 */
     public int maxCompanions() {
         return maxCompanions;
+    }
+
+    /** 只有服主明确登记的身体可在主人离线后继续,不改变主人在权限征询台上的在场状态。 */
+    public boolean resident(UUID companion) {
+        return residentCompanions.contains(companion);
+    }
+
+    public Set<UUID> residents() {
+        return residentCompanions;
+    }
+
+    /** 按身体 UUID 登记,同一主人名下的其他同伴不继承。 */
+    public synchronized void setResident(UUID companion, boolean enabled) {
+        Set<UUID> next = new TreeSet<>(residentCompanions);
+        if (enabled) next.add(companion);
+        else next.remove(companion);
+        residentCompanions = Set.copyOf(next);
+        doc.write(toJson());
     }
 
     /** 改每人最多几只并写回文件。 */
@@ -103,6 +134,9 @@ public final class ServerSettings {
         root.addProperty("maxCompanions", maxCompanions);
         root.addProperty("hardRules", hardRules);
         root.addProperty("unknownAsOther", unknownAsOther);
+        var residents = new com.google.gson.JsonArray();
+        new TreeSet<>(residentCompanions).forEach(id -> residents.add(id.toString()));
+        root.add("residentCompanions", residents);
         return root;
     }
 }

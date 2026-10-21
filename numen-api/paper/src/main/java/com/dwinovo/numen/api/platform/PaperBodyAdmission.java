@@ -7,6 +7,8 @@ import com.dwinovo.numen.api.platform.services.IBodyAdmission;
 import com.mojang.authlib.GameProfile;
 import io.papermc.paper.adventure.PaperAdventure;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import org.bukkit.Bukkit;
@@ -35,6 +37,9 @@ public final class PaperBodyAdmission implements IBodyAdmission {
 
     @Override
     public void admit(NumenPlayer body, FakeConnection connection, Consumer<Component> verdict) {
+        // 内存连接也要有原版协议处理器:placeNewPlayer 会切换它们,ProtocolLib 等插件也据此安装自己的监听。
+        // 沿用 Paper 的内存通道初始化,没有套接字;真正的出站包仍由 FakeConnection.send 交给 FakeClient。
+        Connection.configureInMemoryPipeline(connection.channel.pipeline(), PacketFlow.SERVERBOUND);
         connection.deliverOutboundTo(body.fakeClient()::onOutbound);
         MinecraftServer server = body.server;
         GameProfile profile = body.getGameProfile();
@@ -74,7 +79,12 @@ public final class PaperBodyAdmission implements IBodyAdmission {
     @Override
     public void joined(NumenPlayer body) {
         exitPlayerChunkLoading(body);
-        OwnerPermissible.injectInto(body.getBukkitEntity(), body.getOwnerUuid());
+        // A verified existing account keeps its original LuckPerms/Bukkit
+        // identity. New companions retain upstream owner-delegated permissions.
+        var marker = com.dwinovo.numen.api.home.Homes.of(body.server).companion(body.getUUID())
+                .file(com.dwinovo.numen.api.brain.AdoptedPermissions.FILE);
+        if (!com.dwinovo.numen.api.brain.AdoptedPermissions.usesOriginal(marker, body.getUUID(), body.getOwnerUuid()))
+            OwnerPermissible.injectInto(body.getBukkitEntity(), body.getOwnerUuid());
     }
 
     /**

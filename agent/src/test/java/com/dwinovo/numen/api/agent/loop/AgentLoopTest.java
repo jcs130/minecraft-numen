@@ -50,6 +50,34 @@ class AgentLoopTest extends LoopHarness {
             assertFalse(loop.asideFree());
             assertFalse(loop.runAside(new LlmToolCall("ext-b", "lua", "{}"), result -> { }));
         }
+
+        @Test
+        void disconnectSettlesExternalCallerAndReleasesItsSlot() {
+            List<String> first = new ArrayList<>();
+            assertTrue(loop.runAside(new LlmToolCall("ext-a", "lua", "{}"), first::add));
+            loop.halt(HaltReason.DISCONNECT);
+            assertEquals(1, first.size(), "the external waiter needs an interruption receipt");
+            assertTrue(com.dwinovo.numen.api.agent.llm.ToolOutcome.failed(first.get(0)));
+            assertTrue(first.get(0).contains("before deciding"), first.get(0));
+            assertTrue(loop.asideFree(), "a reconnect must not inherit a permanently busy slot");
+            loop.halt(HaltReason.DISCONNECT);
+            assertEquals(1, first.size(), "an already settled caller is not reported twice");
+            List<String> second = new ArrayList<>();
+            assertTrue(loop.runAside(new LlmToolCall("ext-b", "lua", "{}"), second::add));
+            tools.finish("ext-b");
+            assertEquals(1, second.size());
+            assertEquals(1, first.size());
+        }
+
+        @Test
+        void haltDoesNotRepeatAnAlreadyCompletedExternalReceipt() {
+            List<String> replies = new ArrayList<>();
+            assertTrue(loop.runAside(new LlmToolCall("ext-a", "lua", "{}"), replies::add));
+            tools.finish("ext-a");
+            loop.halt(HaltReason.EXTERNAL);
+            assertEquals(1, replies.size());
+            assertTrue(loop.asideFree());
+        }
     }
 
     // ---- 开 run 的时机 ----

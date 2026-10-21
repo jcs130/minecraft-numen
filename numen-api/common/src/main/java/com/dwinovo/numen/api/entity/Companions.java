@@ -277,9 +277,17 @@ public final class Companions {
     /** 排队等恢复的主人。世界作废时一并清掉——排的是上一个存档的账。 */
     private static final java.util.Set<UUID> PENDING_RESTORE =
             java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final java.util.Set<UUID> PENDING_RESIDENTS =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** 常驻身体的恢复也排在下一刻,不嵌进启动/登录/命令调用栈,且每次请求只试一次。 */
+    public static void scheduleResidentRestore(UUID companion) {
+        PENDING_RESIDENTS.add(companion);
+    }
 
     static {
         com.dwinovo.numen.api.platform.ServerLifecycle.onStopped(PENDING_RESTORE::clear);
+        com.dwinovo.numen.api.platform.ServerLifecycle.onStopped(PENDING_RESIDENTS::clear);
     }
 
     /**
@@ -289,6 +297,13 @@ public final class Companions {
      */
     public static void restorePending(MinecraftServer server) {
         drainPending(ownerUuid -> respawnAllOwnedBy(server, ownerUuid));
+        drain(PENDING_RESIDENTS, companion -> {
+            CompanionRegistry.Entry entry = CompanionRegistry.get(server).find(companion);
+            if (entry != null && entry.diedAt() == 0L && !entry.removed()
+                    && com.dwinovo.numen.api.brain.ModelServices.of(server).settings().resident(companion)) {
+                bringBack(server, companion);
+            }
+        });
     }
 
     /**
@@ -300,11 +315,15 @@ public final class Companions {
      * <p>纯逻辑,不碰 Minecraft——留这个缝是为了这两条能被单测钉住。
      */
     static void drainPending(java.util.function.Consumer<UUID> restore) {
-        if (PENDING_RESTORE.isEmpty()) {
+        drain(PENDING_RESTORE, restore);
+    }
+
+    private static void drain(java.util.Set<UUID> pending, java.util.function.Consumer<UUID> restore) {
+        if (pending.isEmpty()) {
             return;
         }
-        List<UUID> due = new ArrayList<>(PENDING_RESTORE);
-        PENDING_RESTORE.removeAll(due);
+        List<UUID> due = new ArrayList<>(pending);
+        pending.removeAll(due);
         for (UUID ownerUuid : due) {
             try {
                 restore.accept(ownerUuid);
@@ -422,9 +441,9 @@ public final class Companions {
     }
 
     /**
-     * Bring back any companion whose post-death timer has elapsed, AT ITS OWNER (covers dimension
-     * follow too — it returns in whatever dimension the owner is now in). Owner offline → keep waiting
-     * (their client-side brain can't run anyway); it respawns the moment they're back. Called each tick.
+     * Bring back any companion whose post-death timer has elapsed, at its owner when present.
+     * A resident whose owner is offline returns near the registry's respawn hint; other companions wait.
+     * Called each tick.
      */
     public static void tickRespawns(MinecraftServer server) {
         long now = server.overworld().getGameTime();
@@ -433,7 +452,15 @@ public final class Companions {
             if (now - entry.diedAt() < RESPAWN_DELAY_TICKS) continue;
             if (entry.removed()) continue;                          // 被请出去或被服务器拒了:等主人再召唤
             ServerPlayer owner = server.getPlayerList().getPlayer(entry.owner());
-            if (owner == null) continue;                            // owner offline — wait for login
+            if (owner == null) {
+                if (com.dwinovo.numen.api.brain.ModelServices.of(server).settings().resident(e.getKey())
+                        && !CompanionFactory.isArriving(e.getKey())) {
+                    ServerLevel level = server.getLevel(entry.dimension());
+                    if (level != null) respawnDead(server, e.getKey(), entry, level,
+                            Vec3.atBottomCenterOf(entry.pos()), null);
+                }
+                continue;
+            }
             // No safe spot right now → quietly retry next tick until the owner reaches open
             // space (the maid/vanilla-pet convention: never nag about a transient squeeze).
             respawnDead(server, e.getKey(), entry, owner);
@@ -454,6 +481,18 @@ public final class Companions {
             pos = owner.position();   // non-full-block floor (slab/carpet): the owner's own spot fits
         }
         if (pos == null) return false;
+        return respawnDeadAt(server, uuid, entry, level, pos, owner);
+    }
+
+    /** 主人离线时常驻者回名册中的复活点,仍经安全落脚与原版死亡/背包保存流程。 */
+    private static boolean respawnDead(MinecraftServer server, UUID uuid, CompanionRegistry.Entry entry,
+                                       ServerLevel level, Vec3 hint, ServerPlayer owner) {
+        Vec3 pos = SafeSpawn.findNear(level, hint);
+        return pos != null && respawnDeadAt(server, uuid, entry, level, pos, owner);
+    }
+
+    private static boolean respawnDeadAt(MinecraftServer server, UUID uuid, CompanionRegistry.Entry entry,
+                                         ServerLevel level, Vec3 pos, ServerPlayer owner) {
         CompanionRegistry reg = CompanionRegistry.get(server);
         CompanionFactory.spawn(server, uuid, entry.name(), entry.owner(), level, pos,
                 () -> reg.find(uuid) != null && reg.find(uuid).diedAt() > 0L, arrival -> {
@@ -465,7 +504,7 @@ public final class Companions {
             body.setHealth(body.getMaxHealth());
             body.clearFire();
             reg.markAlive(uuid);
-            syncRosterToOwner(server, owner);
+            if (owner != null) syncRosterToOwner(server, owner);
             com.dwinovo.numen.api.brain.CompanionLoops.get(uuid).ifPresent(brain -> brain.onRespawned(entry.deathCause()));
         });
         return true;

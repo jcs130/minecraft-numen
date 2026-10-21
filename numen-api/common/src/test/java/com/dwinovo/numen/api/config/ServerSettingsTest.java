@@ -11,6 +11,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -65,5 +67,50 @@ class ServerSettingsTest {
         ServerSettings settings = new ServerSettings(home(dir), true);
         assertTrue(settings.hardRules());
         assertTrue(settings.unknownAsOther());
+    }
+
+    @Test
+    void residentsAreOptInPerBodyAndSurviveRestart(@TempDir Path dir) {
+        UUID a = UUID.randomUUID(), sibling = UUID.randomUUID();
+        ServerSettings settings = new ServerSettings(home(dir), true);
+        assertTrue(settings.residents().isEmpty());
+        settings.setResident(a, true);
+        settings.setResident(a, true);
+        assertEquals(Set.of(a), settings.residents());
+        assertFalse(settings.resident(sibling));
+        ServerSettings restarted = new ServerSettings(home(dir), true);
+        assertTrue(restarted.resident(a));
+        assertFalse(restarted.resident(sibling));
+        restarted.setResident(a, false);
+        assertTrue(new ServerSettings(home(dir), true).residents().isEmpty());
+    }
+
+    @Test
+    void oldSettingsDoNotOptAnyoneIn(@TempDir Path dir) throws IOException {
+        Files.writeString(dir.resolve(ServerSettings.FILE), "{\"maxCompanions\":2,\"dailyTokenLimit\":12345}");
+        ServerSettings settings = new ServerSettings(home(dir), true);
+        assertTrue(settings.residents().isEmpty());
+        settings.setResident(UUID.randomUUID(), true);
+        ServerSettings reread = new ServerSettings(home(dir), true);
+        assertEquals(2, reread.maxCompanions());
+        assertEquals(12345, reread.dailyTokenLimit());
+        assertTrue(reread.hardRules());
+        assertTrue(reread.unknownAsOther());
+    }
+
+    @Test
+    void malformedResidentListDoesNotEnableItsValidPrefix(@TempDir Path dir) throws IOException {
+        Files.writeString(dir.resolve(ServerSettings.FILE), "{\"residentCompanions\":[\""
+                + UUID.randomUUID() + "\",\"broken-uuid\"]}");
+        assertTrue(new ServerSettings(home(dir), true).residents().isEmpty());
+    }
+
+    @Test
+    void removingListOnReloadDisablesResidency(@TempDir Path dir) throws IOException {
+        ServerSettings settings = new ServerSettings(home(dir), true);
+        settings.setResident(UUID.randomUUID(), true);
+        Files.writeString(dir.resolve(ServerSettings.FILE), "{}");
+        settings.reload();
+        assertTrue(settings.residents().isEmpty());
     }
 }

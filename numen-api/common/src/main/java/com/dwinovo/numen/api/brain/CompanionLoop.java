@@ -403,6 +403,11 @@ public final class CompanionLoop {
 
     /** 每个服务器刻一次:驾驶席翻转、停牌变化的播报,和"攒够时长"的熟度。 */
     public void tick() {
+        updateDriving();
+        loop.tick();
+    }
+
+    private void updateDriving() {
         // 驾驶席翻成外接的那一下作废在飞的回合:接管之后内脑的回复不该再派工具、整理不该再换历史。
         // 交还不用做什么——停牌是现算的,内核下一次推进自己看得见。
         boolean driving = parts.driving().getAsBoolean();
@@ -410,7 +415,6 @@ public final class CompanionLoop {
             loop.halt(HaltReason.EXTERNAL);
         }
         wasDriving = driving;
-        loop.tick();
     }
 
     // ---- 外接大脑 ----
@@ -448,6 +452,9 @@ public final class CompanionLoop {
      * @return 收下了;内脑正在干活、或已有一个外接调用在跑时为 false,什么都没记
      */
     public boolean runExternal(LlmToolCall call, Consumer<String> done) {
+        // MCP can dispatch between ticks. Settle takeover before accepting its
+        // first call, or the next tick cancels that external call as old AI work.
+        updateDriving();
         if (!loop.asideFree()) {
             return false;
         }
@@ -479,7 +486,7 @@ public final class CompanionLoop {
         // 死亡是急件——她关于自己处境的认知几乎每一条都作废了:物品掉在死亡地点、位置从矿洞变成了主人身边、
         // 手上的任务没了、血量装备全变了。这不分"任务中死"还是"空闲死",所以这里没有任何判据。
         loop.push(List.of(NumenEvents.entry(parts.dayTime().getAsLong(), EventTypes.DEATH, null,
-                "你刚才死了(" + cause + "),背包里的东西全掉在死亡地点了;现已在主人身边复活。先看看状况再决定下一步。",
+                "你刚才死了(" + cause + "),现已在安全复活点复活。物品是否保留取决于世界死亡规则,先查看当前位置和背包再决定下一步。",
                 System.currentTimeMillis(), true)));
         loop.respawned();
     }

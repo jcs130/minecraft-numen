@@ -903,7 +903,7 @@ public final class McpServer {
                     .get(config.callTimeoutSeconds(), TimeUnit.SECONDS);
             // the external agent reads what the built-in brain reads: the result's message, never its structured data
             String events = hands.takeEvents(companion).get(CONTROL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            return receipt(ToolOutcome.modelText(result), ToolOutcome.failed(result), events);
+            return toolReceipt(result, events);
         }
 
         /** 把 {@code companion} 参数(名字或 UUID)解析成这张令牌管得着的、活着的同伴;没有是 null。 */
@@ -939,6 +939,19 @@ public final class McpServer {
         if (events != null) {
             out.getAsJsonArray("content").add(textItem(events));
         }
+        return out;
+    }
+
+    /** Optional original command data; ordinary Lua receipts keep their display limits. */
+    static JsonObject toolReceipt(String result, String events) {
+        JsonObject out = receipt(ToolOutcome.modelText(result), ToolOutcome.failed(result), events);
+        try {
+            JsonObject envelope = com.google.gson.JsonParser.parseString(result).getAsJsonObject();
+            JsonObject data = new JsonObject();
+            if (envelope.has("commandReceipt")) data.add("commandReceipt", envelope.get("commandReceipt"));
+            if (envelope.has("commandReceiptError")) data.add("commandReceiptError", envelope.get("commandReceiptError"));
+            if (!data.isEmpty()) out.add("structuredContent", data);
+        } catch (RuntimeException plainText) { /* Other tools can return plain text. */ }
         return out;
     }
 
