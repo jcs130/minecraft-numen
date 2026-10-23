@@ -14,6 +14,28 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /** 官方发布协议的真实 Paper 连接;二进制布局另用原发布 JAR 的 codec 核对。 */
 class ReleaseClientTest extends Scenario {
+    @Test void summonNameCaseKeepsTheSameBodyAndInventory() throws Exception {
+        Bot owner = legacy("rel_identity");
+        try {
+            UUID body = summonPacket(owner, "RelIdentity");
+            console("give RelIdentity minecraft:diamond 3");
+            String inventory = console("data get entity " + body + " Inventory");
+            assertTrue(inventory.contains("minecraft:diamond"));
+            for (String name : List.of("RelIdentity", "RELIDENTITY", "rElIdEnTiTy")) {
+                assertEquals(body, summonPacket(owner, name));
+                assertEquals(1, roster(owner).stream().filter(e -> e.name.equalsIgnoreCase(name)).count());
+                assertEquals(inventory, console("data get entity " + body + " Inventory"));
+            }
+            owner.command("numen player despawn rElIdEnTiTy");
+            until(() -> !online("RelIdentity"), "case-insensitive explicit dismissal");
+            UUID replacement = summonPacket(owner, "RelIdentity");
+            assertNotEquals(body, replacement, "only explicit permanent dismissal ends the identity");
+        } finally {
+            owner.command("numen player despawn RelIdentity");
+            until(() -> !online("RelIdentity"), "identity test cleanup");
+        }
+    }
+
     @Test void oldClientModelCommandsExplainWhereItsSettingsActuallyLive() throws Exception {
         Bot owner = legacy("rel_settings");
         summonPacket(owner, "RelSettings");
@@ -321,11 +343,13 @@ class ReleaseClientTest extends Scenario {
         return owner;
     }
     private UUID summonPacket(Bot owner, String name) throws Exception {
+        int before = owner.payloads(ROSTER).size();
         ByteArrayOutputStream bytes = new ByteArrayOutputStream(); DataOutputStream out = new DataOutputStream(bytes);
         writeText(out, name); writeText(out, ""); writeText(out, ""); out.writeBoolean(false);
         owner.payload("numen_api:summon_request", bytes.toByteArray());
-        until(() -> roster(owner).stream().anyMatch(e -> e.name.equals(name)), "legacy summon " + name);
-        return roster(owner).stream().filter(e -> e.name.equals(name)).findFirst().orElseThrow().id;
+        until(() -> owner.payloads(ROSTER).size() > before
+                && roster(owner).stream().anyMatch(e -> e.name.equalsIgnoreCase(name)), "legacy summon " + name);
+        return roster(owner).stream().filter(e -> e.name.equalsIgnoreCase(name)).findFirst().orElseThrow().id;
     }
     private static void run(Bot owner, UUID body, String id, String code) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream(); DataOutputStream out = new DataOutputStream(bytes);

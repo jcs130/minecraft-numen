@@ -186,6 +186,8 @@ Paper、Leaves、spark、WorldEdit、PacketEvents、ProtocolLib 是 GPL,Citizens
 - **摘出区块加载放在 `joined`**(`placeNewPlayer` 一开头就把旗标置真,所以不能在加入前置假):`removePlayer` 后 `setRealPlayer(false)`,实测区块包为 0(只有两个视距/中心包),换维度、死亡重生(重新加入时再摘一次)都不会被加回。
 - **权限委托也在 `joined`**,晚于权限插件在 `PlayerLoginEvent` 里的注入,所以取代它的。主人在线问主人;离线经 Vault(装了的话)查离线玩家,没装按主人是不是 op 套默认值;没有任何权限插件的专属代码。
   实测(LuckPerms,她经 `numen.mc.run` 以自己的身份跑指令):主人在线有授权/无授权、主人离线不装 Vault 时授权不算数(按 op)、装了 Vault 时授权经 LuckPerms 算数、主人是 op 时放行。Vault 的接口取 JitPack 的 VaultAPI 1.7(`transitive = false`:它依赖的老 Bukkit API 会盖掉 Paper 的)。
+- **名字与身体身份**:同一主人召唤同名玩家时不分大小写,复用名册中的 UUID 与原拼写;不按玩家名生成或合并 UUID。重复召唤、主人重连、换皮肤均保留原身体。`/numen player despawn <name>` 和面板确认删除是永久遣散,会清除名册,之后新建会分配新 UUID;临时退出不要用删除。历史重复身体不自动合并或丢弃物品。
+  创建、复用、永久遣散在服务端日志以 `[numen-lifecycle]` 记录 body/owner/name,不发到游戏公屏。`create` 表示新建名册条目,实际加入仍须经过平台接纳。LuckPerms 可用身体 UUID 查询身份;普通新同伴仍委托主人的权限,原账号接管沿用既有权限策略。
 - **被踢与被收的区分不靠猜**:Numen 自己收她只有 `CompanionFactory.despawn` 一条路,收之前把她记进"正被 Numen 移出"的集合(`isLeaving`);`PlayerKickEvent`(MONITOR)与 `PlayerQuitEvent` 里不在这个集合里的,就是外面请出去的,交给 `Companions.removedFromOutside`
   (踢人先到 Kick 再到 Quit,入口对第二次是空操作)。关服时 Paper 先停插件、后踢人,监听器已经不在,不会误报。
 - **掉落物的几处挂点**:`BlockDropItemEvent` 里包住 `breakStarts/added/breakEnds`(Paper 在这一挖期间把进世界的物品实体都截下来交给它,事件之后才真进世界);`EntityPickupItemEvent`(件数减掉之前)→ `taken`;

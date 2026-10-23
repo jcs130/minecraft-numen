@@ -47,6 +47,8 @@ public final class Companions {
         CompanionRegistry reg = CompanionRegistry.get(server);
         UUID existing = findByOwnerName(server, ownerUuid, name);
         if (existing != null) {
+            com.dwinovo.numen.api.Constants.LOG.info("[numen-lifecycle] reuse body={} owner={} name={}",
+                    existing, ownerUuid, reg.find(existing).name());
             // 被外面请出去的她只有主人再召唤才回来:召唤就是主人的决定,清掉"被请出去"的状态,身体回来后解开停牌
             boolean returning = reg.find(existing).removed();
             reg.markReturned(existing);
@@ -73,6 +75,8 @@ public final class Companions {
         CompanionRegistry.Entry fresh = new CompanionRegistry.Entry(
                 name, ownerUuid, level.dimension(), net.minecraft.core.BlockPos.containing(pos));
         reg.put(companionUuid, fresh);
+        com.dwinovo.numen.api.Constants.LOG.info("[numen-lifecycle] create body={} owner={} name={}",
+                companionUuid, ownerUuid, name);
         CompanionFactory.spawn(server, companionUuid, name, ownerUuid, level, pos,
                 () -> reg.find(companionUuid) != null, arrival -> {
             NumenPlayer body = arrival.body();
@@ -626,6 +630,11 @@ public final class Companions {
      */
     public static void dismiss(MinecraftServer server, UUID ownerUuid, Collection<UUID> uuids) {
         for (UUID uuid : uuids) {
+            CompanionRegistry.Entry entry = CompanionRegistry.get(server).find(uuid);
+            if (entry != null) {
+                com.dwinovo.numen.api.Constants.LOG.info("[numen-lifecycle] dismiss body={} owner={} name={}",
+                        uuid, entry.owner(), entry.name());
+            }
             NumenPlayer live = NumenPlayer.findByUuid(server, uuid);
             if (live == null) continue;
             dropEverything(live);
@@ -678,7 +687,7 @@ public final class Companions {
     public static int dismissByName(MinecraftServer server, UUID ownerUuid, String name) {
         List<UUID> ids = new ArrayList<>();
         for (Map.Entry<UUID, CompanionRegistry.Entry> e : CompanionRegistry.get(server).ownedBy(ownerUuid)) {
-            if (e.getValue().name().equals(name)) ids.add(e.getKey());
+            if (e.getValue().name().equalsIgnoreCase(name)) ids.add(e.getKey());
         }
         dismiss(server, ownerUuid, ids);
         return ids.size();

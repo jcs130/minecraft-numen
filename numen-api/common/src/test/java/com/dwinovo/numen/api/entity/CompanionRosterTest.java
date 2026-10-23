@@ -97,6 +97,25 @@ class CompanionRosterTest {
         assertNull(CompanionRoster.findByName(List.of(), "小焰"));
     }
 
+    @Test
+    void playerNameCaseDoesNotMintAnotherIdentity() {
+        List<CompanionRoster.Row> rows = List.of(new CompanionRoster.Row(A, "Fishy", 0L));
+        assertEquals(A, CompanionRoster.findByName(rows, "fishy"));
+        assertEquals(A, CompanionRoster.findByName(rows, "FISHY"));
+        assertEquals(A, CompanionRoster.findByName(rows, "FiShY"));
+        assertNull(CompanionRoster.findByName(rows, "fishy_2"));
+        assertNull(CompanionRoster.findByName(rows, "fishy "));
+    }
+
+    @Test
+    void historicalCaseDuplicatesStillResolveDeterministically() {
+        List<CompanionRoster.Row> rows = List.of(
+                new CompanionRoster.Row(B, "Fishy", 0L),
+                new CompanionRoster.Row(A, "fishy", 42L));
+        assertEquals(A, CompanionRoster.findByName(rows, "FISHY"));
+        assertEquals(A, CompanionRoster.findByName(rows.reversed(), "Fishy"));
+    }
+
     // ---- 改:死亡倒计时 ----
 
     @Test
